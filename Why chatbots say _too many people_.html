@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Why do chatbots say "too many people"?</title>
+<style>
+:root{--bg:#eef2f6;--card:#fff;--ink:#1d2433;--mute:#5f6b7a;--line:#cfd8e3;--free:#5b7db1;--paid:#d99a00;--bad:#c2410c;--ok:#2f855a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111722;--card:#1a2230;--ink:#e8edf5;--mute:#9aa6b8;--line:#2d3849;--free:#7fa2d8;--paid:#f2b631;--bad:#f08a5d;--ok:#5fc08a}}
+:root[data-theme="dark"]{--bg:#111722;--card:#1a2230;--ink:#e8edf5;--mute:#9aa6b8;--line:#2d3849;--free:#7fa2d8;--paid:#f2b631;--bad:#f08a5d;--ok:#5fc08a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 40px}
+h1{font:700 1.7rem/1.2 Georgia,"Times New Roman",serif;margin:0 0 6px}
+p{margin:0 0 10px;color:var(--mute)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:14px}
+h2{font-size:1rem;margin:0 0 2px}
+.sub{font-size:.85rem;color:var(--mute);margin-bottom:10px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:inherit;font-weight:600;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--free);outline-offset:2px}
+button.free{background:var(--free);color:#fff;border-color:var(--free)}
+button.paid{background:var(--paid);color:#1d2433;border-color:var(--paid)}
+button.on{outline:3px solid var(--ok)}
+.slots{display:flex;flex-wrap:wrap;gap:8px}
+.slot{min-width:120px;min-height:58px;border:2px dashed var(--line);border-radius:10px;padding:6px;display:flex;align-items:center;justify-content:center;color:var(--mute);font-size:.8rem;flex:1 1 120px}
+.slot.full{border-style:solid}
+.chip{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--ink);width:100%}
+.dot{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:.8rem;flex:none}
+.dot.free{background:var(--free)}.dot.paid{background:var(--paid);color:#1d2433}
+.bar{height:6px;background:var(--line);border-radius:3px;margin-top:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);transition:width .4s linear}
+.flow{display:grid;grid-template-columns:1fr;gap:0}
+.arrow{text-align:center;color:var(--mute);font-size:.8rem;padding:4px}
+.away{min-height:40px;display:flex;flex-wrap:wrap;gap:6px}
+.tag{border:1px solid var(--bad);color:var(--bad);border-radius:999px;padding:2px 10px;font-size:.8rem;font-weight:600}
+#log{list-style:none;margin:0;padding:0;font-size:.92rem}
+#log li{padding:6px 0;border-bottom:1px solid var(--line)}
+#log li:first-child{font-weight:700}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+.legend{font-size:.85rem;color:var(--mute)}
+</style></head>
+<body><main>
+<h1>Why do chatbots say "too many people, try again"?</h1>
+<p>Think of a small restaurant. It has 2 tables (the servers doing the real work) and a waiting line with room for only 3 people. Press the buttons and watch what happens, one slow step at a time.</p>
+
+<div class="panel">
+<div class="row">
+<button class="free" id="bFree">Add a free user</button>
+<button class="paid" id="bPaid">Add a paid user</button>
+<button id="bAuto">Crowd arrives by itself: off</button>
+</div>
+<div class="row" style="margin-top:10px">
+<button id="bPause">Pause</button>
+<button id="bStep">Do one step</button>
+<button id="bReset">Start over</button>
+<label class="legend">Speed: slow <input type="range" id="speed" min="500" max="3000" value="1500" aria-label="Speed"> fast</label>
+</div>
+<p class="legend" style="margin:10px 0 0">One "step" is one tick of the clock: each person at a table gets a bit closer to finishing. <b style="color:var(--free)">Blue = free user</b>, <b style="color:var(--paid)">gold = paid user</b>.</p>
+</div>
+
+<div class="panel flow">
+<div><h2>1. The line outside (waiting room: 3 spots)</h2><div class="sub">People wait here when both tables are busy. Paid users stand ahead of free users.</div><div class="slots" id="queue"></div></div>
+<div class="arrow">&#8595; next person goes to a table when one frees up &#8595;</div>
+<div><h2>2. The tables (the AI servers answering questions)</h2><div class="sub">Each person needs a few steps to finish their chat.</div><div class="slots" id="servers"></div></div>
+</div>
+
+<div class="panel">
+<h2>3. Turned away at the door</h2>
+<div class="sub">The line was full, so these people see: "Too many people, try again."</div>
+<div class="away" id="away"></div>
+</div>
+
+<div class="panel">
+<h2>What just happened</h2>
+<div class="sub">Newest message on top.</div>
+<ul id="log"></ul>
+</div>
+</main>
+<script>
+const W=2,MAXQ=3,NEED=4,names=["Asha","Ravi","Meera","Kiran","Sana","Arjun","Divya","Imran","Lata","Vikram","Neha","Rohan"];
+let tickMs=2000,paused=false,timer=null,n=0,auto=false,servers,queue,away,log;
+const $=id=>document.getElementById(id);
+function reset(){servers=[null,null];queue=[];away=[];log=[];n=0;say("The restaurant is open. Add some people!","");render()}
+function say(t,c){log.unshift({t,c});log=log.slice(0,8)}
+function tag(p){return p.name+(p.paid?" (paid)":" (free)")}
+function insert(p){if(!p.paid){queue.push(p);return}let k=queue.findIndex(q=>!q.paid);if(k<0)k=queue.length;queue.splice(k,0,p)}
+function arrive(paid){
+ const p={name:names[n%names.length],paid};n++;
+ const i=servers.indexOf(null);
+ if(i>-1){servers[i]={p,left:NEED};say(tag(p)+" arrives. A table is empty, so they sit down right away.","ok")}
+ else if(queue.length<MAXQ){insert(p);say(tag(p)+" arrives. Both tables are busy, so they join the line"+(p.paid?" (ahead of free users).":"."),"")}
+ else if(paid&&queue.some(q=>!q.paid)){
+  const k=queue.map(q=>q.paid).lastIndexOf(false),out=queue.splice(k,1)[0];away.push(out);insert(p);
+  say(tag(p)+" arrives. The line is full, but paid users get priority, so "+out.name+" (free) is pushed out.","bad")}
+ else{away.push(p);say(tag(p)+" arrives. Tables busy, line full: \"Too many people, try again.\"","bad")}
+ render()}
+function tick(){
+ servers.forEach((s,i)=>{if(!s)return;s.left--;
+  if(s.left<=0){say(s.p.name+" is finished and leaves. A table frees up.","");servers[i]=null;
+   if(queue.length){const nx=queue.shift();servers[i]={p:nx,left:NEED};say(nx.name+" moves from the line to the table.","ok")}}});
+ if(auto&&Math.random()<.7)arrive(Math.random()<.2);
+ render()}
+function chip(p){return '<div class="chip"><span class="dot '+(p.paid?'paid':'free')+'">'+p.name[0]+'</span>'+p.name+'</div>'}
+function render(){
+ $("queue").innerHTML=Array.from({length:MAXQ},(_,i)=>queue[i]?'<div class="slot full">'+chip(queue[i])+'</div>':'<div class="slot">empty spot</div>').join("");
+ $("servers").innerHTML=servers.map(s=>s?'<div class="slot full"><div style="width:100%">'+chip(s.p)+'<div class="bar"><i style="width:'+((NEED-s.left)/NEED*100)+'%"></i></div></div></div>':'<div class="slot">free table</div>').join("");
+ $("away").innerHTML=away.length?away.slice(-8).map(p=>'<span class="tag">'+tag(p)+'</span>').join(""):'<span class="legend">Nobody yet.</span>';
+ $("log").innerHTML=log.map(l=>'<li class="'+l.c+'">'+l.t+'</li>').join("")}
+function setTimer(){clearInterval(timer);if(!paused)timer=setInterval(tick,tickMs)}
+$("bFree").onclick=()=>arrive(false);
+$("bPaid").onclick=()=>arrive(true);
+$("bAuto").onclick=e=>{auto=!auto;e.target.textContent="Crowd arrives by itself: "+(auto?"on":"off");e.target.classList.toggle("on",auto)};
+$("bPause").onclick=e=>{paused=!paused;e.target.textContent=paused?"Resume":"Pause";setTimer()};
+$("bStep").onclick=tick;
+$("bReset").onclick=reset;
+$("speed").oninput=e=>{tickMs=3500-e.target.value;setTimer()};
+reset();setTimer();
+</script></body></html>
